@@ -9,10 +9,10 @@ COLOR_MAGENTA := 5
 COLOR_CYAN    := 6
 COLOR_WHITE   := 7
 
-config RGBLED_WIDGET
-    bool "Enable RGB LED widget for showing battery and output status"
+config SMART_RGBLED_WIDGET
+    bool "Enable smart RGB LED widget for showing battery and output status"
 
-if RGBLED_WIDGET
+if SMART_RGBLED_WIDGET
 
 config LED
     default y
