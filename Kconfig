@@ -1,4 +1,5 @@
 # Color definitions to use with color settings
+COLOR_RESET   := -1
 COLOR_BLACK   := 0
 COLOR_RED     := 1
 COLOR_GREEN   := 2
@@ -105,8 +106,8 @@ config RGBLED_WIDGET_SHOW_LAYER_COLORS
 
 config RGBLED_WIDGET_LAYER_0_COLOR
     int "Color to use for the base layer"
-    range 0 7
-    default $(COLOR_BLACK)
+    range -1 7
+    default $(COLOR_RESET)
 
 config RGBLED_WIDGET_LAYER_1_COLOR
     int "Color to use for layer 1"

@@ -13,6 +13,7 @@
 #include <zmk/events/split_peripheral_status_changed.h>
 #include <zmk/keymap.h>
 #include <zmk/split/bluetooth/peripheral.h>
+#include <zmk/rgb_underglow.h>
 
 #include <zephyr/logging/log.h>
 
@@ -20,27 +21,31 @@
 
 LOG_MODULE_DECLARE(zmk, CONFIG_ZMK_LOG_LEVEL);
 
-#define LED_GPIO_NODE_ID DT_COMPAT_GET_ANY_STATUS_OKAY(gpio_leds)
+#if !DT_HAS_CHOSEN(zmk_underglow)
 
-BUILD_ASSERT(DT_NODE_EXISTS(DT_ALIAS(led_red)),
-             "An alias for a red LED is not found for RGBLED_WIDGET");
-BUILD_ASSERT(DT_NODE_EXISTS(DT_ALIAS(led_green)),
-             "An alias for a green LED is not found for RGBLED_WIDGET");
-BUILD_ASSERT(DT_NODE_EXISTS(DT_ALIAS(led_blue)),
-             "An alias for a blue LED is not found for RGBLED_WIDGET");
+#error "A zmk,underglow chosen node must be declared"
+
+#endif
+
+#define COLOR_RESET -1
 
 BUILD_ASSERT(!(SHOW_LAYER_CHANGE && SHOW_LAYER_COLORS),
              "CONFIG_RGBLED_WIDGET_SHOW_LAYER_CHANGE and CONFIG_RGBLED_WIDGET_SHOW_LAYER_COLORS are mutually exclusive");
 
-// GPIO-based LED device and indices of red/green/blue LEDs inside its DT node
-static const struct device *led_dev = DEVICE_DT_GET(LED_GPIO_NODE_ID);
-static const uint8_t rgb_idx[] = {DT_NODE_CHILD_IDX(DT_ALIAS(led_red)),
-                                  DT_NODE_CHILD_IDX(DT_ALIAS(led_green)),
-                                  DT_NODE_CHILD_IDX(DT_ALIAS(led_blue))};
-
 // map from color values to names, for logging
 static const char *color_names[] = {"black", "red",     "green", "yellow",
                                     "blue",  "magenta", "cyan",  "white"};
+
+static const struct zmk_led_hsb color_def[8] = {
+    {0,0,0},
+    {0,100,100},
+    {120,100,100},
+    {60,100,100},
+    {240,100,100},
+    {300,100,100},
+    {180,100,100},
+    {0,0,100}
+};
 
 #if SHOW_LAYER_COLORS
 static const uint8_t layer_color_idx[] = {
@@ -83,6 +88,9 @@ struct blink_item {
 
 // flag to indicate whether the initial boot up sequence is complete
 static bool initialized = false;
+
+// cached RGB state
+static struct rgb_underglow_state cached_state;
 
 // define message queue of blink work items, that will be processed by a
 // separate thread
@@ -184,7 +192,7 @@ ZMK_LISTENER(led_battery_listener, led_battery_listener_cb);
 ZMK_SUBSCRIPTION(led_battery_listener, zmk_battery_state_changed);
 #endif // IS_ENABLED(CONFIG_ZMK_BATTERY_REPORTING)
 
-uint8_t led_layer_color = 0;
+int8_t led_layer_color = COLOR_RESET;
 #if SHOW_LAYER_COLORS
 void update_layer_color(void) {
     uint8_t index = zmk_keymap_highest_layer_active();
@@ -192,6 +200,9 @@ void update_layer_color(void) {
     if (led_layer_color != layer_color_idx[index]) {
         led_layer_color = layer_color_idx[index];
         struct blink_item color = {.color = led_layer_color};
+        if(led_layer_color == COLOR_RESET){
+            LOG_INF("Setting layer color to RESET for layer %d", index);
+        }
         LOG_INF("Setting layer color to %s for layer %d", color_names[led_layer_color], index);
         k_msgq_put(&led_msgq, &color, K_NO_WAIT);
     }
@@ -249,20 +260,40 @@ ZMK_LISTENER(led_layer_listener, led_layer_listener_cb);
 ZMK_SUBSCRIPTION(led_layer_listener, zmk_layer_state_changed);
 #endif // SHOW_LAYER_CHANGE
 
-uint8_t led_current_color = 0;
+int8_t led_current_color = COLOR_RESET;
 
-static void set_rgb_leds(uint8_t color, uint16_t duration_ms) {
-    for (uint8_t pos = 0; pos < 3; pos++) {
-        uint8_t bit = BIT(pos);
-        if ((bit & led_current_color) != (bit & color)) {
-            // bits are different, so we need to change one
-            if (bit & color) {
-                led_on(led_dev, rgb_idx[pos]);
-            } else {
-                led_off(led_dev, rgb_idx[pos]);
-            }
+static void set_rgb_leds(int8_t color, uint16_t duration_ms) {
+    LOG_DBG("called color: %d, duration %d", color, duration_ms);
+    LOG_DBG("current: %d, layer color: %d", led_current_color, led_layer_color);
+    if (led_current_color == COLOR_RESET && color != COLOR_RESET){
+        //moving from reset state to non reset state -> save rgb state
+        zmk_rgb_underglow_get_full_state(&cached_state);
+        LOG_DBG("saving underglow state: on %d, effect: %d",
+            cached_state.on, cached_state.current_effect);
+    }
+
+    //change state based on color now
+    if(color == COLOR_RESET && led_current_color != COLOR_RESET){
+        LOG_DBG("restoring underglow state: on %d, effect: %d",
+            cached_state.on, cached_state.current_effect);
+
+        zmk_rgb_underglow_set_hsb(cached_state.color);
+        zmk_rgb_underglow_select_effect(cached_state.current_effect);
+        if(cached_state.on){
+            zmk_rgb_underglow_on();
+        } else {
+            zmk_rgb_underglow_off();
+        }
+    } else if(color != COLOR_RESET) {
+        zmk_rgb_underglow_select_effect(UNDERGLOW_EFFECT_SOLID);
+        zmk_rgb_underglow_set_hsb(color_def[color]);
+        if(color != 0){
+            zmk_rgb_underglow_on();
+        } else {
+            zmk_rgb_underglow_off();
         }
     }
+
     if (duration_ms > 0) {
         k_sleep(K_MSEC(duration_ms));
     }
@@ -287,11 +318,11 @@ extern void led_process_thread(void *d0, void *d1, void *d2) {
                     blink.color, blink.duration_ms);
 
             // Blink the leds, using a separation blink if necessary
-            if (blink.color == led_current_color && blink.color > 0) {
+            if (blink.color == led_current_color && blink.color > COLOR_RESET) {
                 set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
             }
             set_rgb_leds(blink.color, blink.duration_ms);
-            if (blink.color == led_layer_color && blink.color > 0) {
+            if (blink.color == led_layer_color && blink.color > COLOR_RESET) {
                 set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
             }
             // wait interval before processing another blink
