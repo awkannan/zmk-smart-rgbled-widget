@@ -202,8 +202,9 @@ void update_layer_color(void) {
         struct blink_item color = {.color = led_layer_color};
         if(led_layer_color == COLOR_RESET){
             LOG_INF("Setting layer color to RESET for layer %d", index);
+        } else {
+            LOG_INF("Setting layer color to %s for layer %d", color_names[led_layer_color], index);
         }
-        LOG_INF("Setting layer color to %s for layer %d", color_names[led_layer_color], index);
         k_msgq_put(&led_msgq, &color, K_NO_WAIT);
     }
 }
