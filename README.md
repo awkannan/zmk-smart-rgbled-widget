@@ -1,6 +1,8 @@
-# LED indicators using an RGB LED
+# LED indicators using "Smart" LED
 
-This is a [ZMK module](https://zmk.dev/docs/features/modules) containing a simple widget that utilizes a (typically built-in) RGB LED controlled by three separate GPIOs.
+Note: this was adapted from [caksoylar's zmk-rgbled-widget](https://github.com/caksoylar/zmk-rgbled-widget) to function with Smart LEDs typically used for underglow.
+
+This is a [ZMK module](https://zmk.dev/docs/features/modules) containing a simple widget that utilizes a string of Smart RGB LEDs.
 It is used to indicate battery level and BLE connection status in a minimalist way.
 
 ## Features
@@ -32,45 +34,37 @@ You can pick one of the following methods (off by default) to indicate the highe
 
 These layer indicators will only be active on the central part of a split keyboard, since peripheral parts aren't aware of the layer information.
 
+NOTE: There is currently an unresolved issue with `CONFIG_RGBLED_WIDGET_SHOW_LAYER_COLORS` - the current widget doesn't have logic to prevent resetting RGB state to before layers were changed, so as a result, any RGB settings on layers will be overwritten.
+
+If you need layer indicators, it's recommended to use `CONFIG_RGBLED_WIDGET_SHOW_LAYER_CHANGE` for now until this issue is fixed.
+
 > [!TIP]
 > Also see [below](#showing-status-on-demand) for keymap behaviors you can use to show the battery and connection status on demand.
 
 ## Installation
 
-To use, first add this module to your `config/west.yml` by adding a new entry to `remotes` and `projects`:
+Add this module to your `config/west.yml` by adding a new entry to `remotes` and `projects`, and point your zmk source to the branch with the necessary core changes:
 
 ```yaml west.yml
 manifest:
   remotes:
     - name: zmkfirmware
       url-base: https://github.com/zmkfirmware
-    - name: caksoylar  # <-- new entry
-      url-base: https://github.com/caksoylar
+    - name: awkannan  # <-- new entry
+      url-base: https://github.com/awkannan
   projects:
-    - name: zmk
-      remote: zmkfirmware
-      revision: main
+    - name: zmk # <-- modified entry
+      remote: awkannan
+      revision: develop
       import: app/west.yml
-    - name: zmk-rgbled-widget  # <-- new entry
-      remote: caksoylar
+    - name: zmk-smart-rgbled-widget  # <-- new entry
+      remote: awkannan
       revision: main
   self:
     path: config
 ```
 
 For more information, including instructions for building locally, check out the ZMK docs on [building with modules](https://zmk.dev/docs/features/modules#building-with-modules).
-
-Then, if you are using one of the boards supported by the [`rgbled_adapter`](boards/shields/rgbled_adapter) shield such as Xiao BLE,
-just add the `rgbled_adapter` as an additional shield to your build, e.g. in `build.yaml`:
-
-```yaml build.yaml
----
-include:
-  - board: seeeduino_xiao_ble
-    shield: hummingbird rgbled_adapter
-```
-
-For other keyboards, see the ["Adding support" section](#adding-support-in-custom-boardsshields) below.
 
 ## Showing status on demand
 
@@ -99,7 +93,7 @@ This will happen on all keyboard parts for split keyboards, so make sure to flas
 
 > [!NOTE]
 > The behaviors can be used even when you use split keyboards with different controllers that don't all support the widget.
-> Make sure that you use the `rgbled_adapter` shield (or enable `CONFIG_RGBLED_WIDGET` if not using the adapter) only for the keyboard parts that support it.
+> Make sure that you enable `CONFIG_SMART_RGBLED_WIDGET` only for the keyboard parts that support it.
 
 ## Configuration
 
@@ -161,39 +155,10 @@ CONFIG_RGBLED_WIDGET_BATTERY_LEVEL_CRITICAL=10
 
 ## Adding support in custom boards/shields
 
-To be able to use this widget, you need three LEDs controlled by GPIOs (_not_ smart LEDs), ideally red, green and blue colors.
-Once you have these LED definitions in your board/shield, simply set the appropriate `aliases` to the RGB LED node labels.
-
-As an example, here is a definition for three LEDs connected to VCC and separate GPIOs for a nRF52840 controller:
-
-```dts
-/ {
-    aliases {
-        led-red = &led0;
-        led-green = &led1;
-        led-blue = &led2;
-    };
-
-    leds {
-        compatible = "gpio-leds";
-        status = "okay";
-        led0: led_0 {
-            gpios = <&gpio0 26 GPIO_ACTIVE_LOW>;  // red LED, connected to P0.26
-        };
-        led1: led_1 {
-            gpios = <&gpio0 30 GPIO_ACTIVE_LOW>;  // green LED, connected to P0.30
-        };
-        led2: led_2 {
-            gpios = <&gpio0 6 GPIO_ACTIVE_LOW>;  // blue LED, connected to P0.06
-        };
-    };
-};
-```
-
-(If the LEDs are wired between GPIO and GND instead, use `GPIO_ACTIVE_HIGH` flag.)
+To be able to use this widget, you need to define and enable RGB underglow as shown in the [ZMK Docs](https://zmk.dev/docs/features/lighting#rgb-underglow)
 
 Finally, turn on the widget in the configuration:
 
 ```ini
-CONFIG_RGBLED_WIDGET=y
+CONFIG_SMART_RGBLED_WIDGET=y
 ```
