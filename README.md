@@ -93,7 +93,7 @@ This will happen on all keyboard parts for split keyboards, so make sure to flas
 
 > [!NOTE]
 > The behaviors can be used even when you use split keyboards with different controllers that don't all support the widget.
-> Make sure that you use the `rgbled_adapter` shield (or enable `CONFIG_RGBLED_WIDGET` if not using the adapter) only for the keyboard parts that support it.
+> Make sure that you enable `CONFIG_SMART_RGBLED_WIDGET` only for the keyboard parts that support it.
 
 ## Configuration
 
