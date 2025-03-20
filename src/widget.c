@@ -265,7 +265,6 @@ int8_t led_current_color = COLOR_RESET;
 
 static void set_rgb_leds(int8_t color, uint16_t duration_ms) {
     LOG_DBG("called color: %d, duration %d", color, duration_ms);
-    LOG_DBG("current: %d, layer color: %d", led_current_color, led_layer_color);
     if (led_current_color == COLOR_RESET && color != COLOR_RESET){
         //moving from reset state to non reset state -> save rgb state
         zmk_rgb_underglow_get_full_state(&cached_state);
@@ -318,18 +317,15 @@ extern void led_process_thread(void *d0, void *d1, void *d2) {
             LOG_DBG("Got a blink item from msgq, color %d, duration %d",
                     blink.color, blink.duration_ms);
 
-            // Blink the leds, using a separation blink if necessary
-            if (blink.color == led_current_color && blink.color > COLOR_RESET) {
-                set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
-            }
+            // Blink the leds, always using a separation blink
+            // We don't know RGB state, so the separation blink is useful
+            set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
             set_rgb_leds(blink.color, blink.duration_ms);
-            if (blink.color == led_layer_color && blink.color > COLOR_RESET) {
-                set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
-            }
+            set_rgb_leds(0, CONFIG_RGBLED_WIDGET_INTERVAL_MS);
+
             // wait interval before processing another blink
             set_rgb_leds(led_layer_color, blink.sleep_ms > 0 ? blink.sleep_ms :
                          CONFIG_RGBLED_WIDGET_INTERVAL_MS);
-
         } else {
             LOG_DBG("Got a layer color item from msgq, color %d", blink.color);
             set_rgb_leds(blink.color, 0);
