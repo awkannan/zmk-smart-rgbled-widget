@@ -34,6 +34,10 @@ You can pick one of the following methods (off by default) to indicate the highe
 
 These layer indicators will only be active on the central part of a split keyboard, since peripheral parts aren't aware of the layer information.
 
+NOTE: There is currently an unresolved issue with `CONFIG_RGBLED_WIDGET_SHOW_LAYER_COLORS` - the current widget doesn't have logic to prevent resetting RGB state to before layers were changed, so as a result, any RGB settings on layers will be overwritten.
+
+If you need layer indicators, it's recommended to use `CONFIG_RGBLED_WIDGET_SHOW_LAYER_CHANGE` for now until this issue is fixed.
+
 > [!TIP]
 > Also see [below](#showing-status-on-demand) for keymap behaviors you can use to show the battery and connection status on demand.
 
@@ -51,7 +55,7 @@ manifest:
   projects:
     - name: zmk # <-- modified entry
       remote: awkannan
-      revision: 202503_rgbled_extras
+      revision: develop
       import: app/west.yml
     - name: zmk-smart-rgbled-widget  # <-- new entry
       remote: awkannan
@@ -156,5 +160,5 @@ To be able to use this widget, you need to define and enable RGB underglow as sh
 Finally, turn on the widget in the configuration:
 
 ```ini
-CONFIG_RGBLED_WIDGET=y
+CONFIG_SMART_RGBLED_WIDGET=y
 ```

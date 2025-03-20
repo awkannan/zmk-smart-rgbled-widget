@@ -1,2 +1,0 @@
-config SHIELD_RGBLED_ADAPTER
-    def_bool $(shields_list_contains,rgbled_adapter)
